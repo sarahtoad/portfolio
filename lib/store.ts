@@ -55,7 +55,10 @@ function redisFromEnv(): Redis | null {
 }
 
 const redis = redisFromEnv();
-const useRedis = redis !== null;
+const onVercel = process.env.VERCEL === "1";
+
+const REDIS_MISSING_ERROR =
+  "Persistence is not configured. On Vercel you must add the Upstash Redis integration (env UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN, or KV_REST_API_URL + KV_REST_API_TOKEN).";
 
 function redisKey(key: string) {
   return KV_PREFIX + key;
@@ -74,13 +77,16 @@ async function readJson<T>(key: string): Promise<T | null> {
 }
 
 async function writeJson(key: string, value: unknown) {
-  if (!redis) return false;
-  try {
-    await redis.set(redisKey(key), JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
+  if (redis) {
+    try {
+      await redis.set(redisKey(key), JSON.stringify(value));
+      return "redis";
+    } catch (e) {
+      throw new Error(`Redis write failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
+  if (onVercel) throw new Error(REDIS_MISSING_ERROR);
+  return "fs";
 }
 
 function fileFor(resource: Resource) {
@@ -100,8 +106,7 @@ export async function readStore<T>(resource: Resource, seed: T[]): Promise<T[]> 
 }
 
 export async function writeStore<T>(resource: Resource, items: T[]) {
-  const written = await writeJson(FILES[resource], items);
-  if (!written) {
+  if ((await writeJson(FILES[resource], items)) === "fs") {
     await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
     await fs.promises.writeFile(fileFor(resource), JSON.stringify(items, null, 2), "utf8");
   }
@@ -165,8 +170,7 @@ export async function readAbout(): Promise<AboutContent> {
 }
 
 export async function writeAbout(content: AboutContent) {
-  const written = await writeJson("about.json", content);
-  if (!written) {
+  if ((await writeJson("about.json", content)) === "fs") {
     await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
     await fs.promises.writeFile(ABOUT_FILE, JSON.stringify(content, null, 2), "utf8");
   }
@@ -205,8 +209,7 @@ export async function readStats(): Promise<Stats> {
 }
 
 export async function writeStats(stats: Stats) {
-  const written = await writeJson("stats.json", stats);
-  if (!written) {
+  if ((await writeJson("stats.json", stats)) === "fs") {
     await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
     await fs.promises.writeFile(STATS_FILE, JSON.stringify(stats, null, 2), "utf8");
   }

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readStore, writeStore, generateId } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 import type { Certificate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,10 @@ export async function POST(request: NextRequest) {
     image: String(body.image ?? ""),
   };
   certs.push(cert);
-  await writeStore("certificates", certs);
+  try {
+    await writeStore("certificates", certs);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json(cert, { status: 201 });
 }

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readStore, writeStore } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 import type { JourneyChapter } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const updated = { ...list[idx], ...body, id };
   if (typeof updated.highlights === "string") updated.highlights = updated.highlights.split(",").map((s: string) => s.trim()).filter(Boolean);
   list[idx] = updated;
-  await writeStore("experience", list);
+  try {
+    await writeStore("experience", list);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json(list[idx]);
 }
 
@@ -25,6 +30,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (denied) return denied;
   const { id } = await params;
   const list = await readStore<JourneyChapter>("experience", []);
-  await writeStore("experience", list.filter((c) => c.id !== id));
+  const filtered = list.filter((c) => c.id !== id);
+  try {
+    await writeStore("experience", filtered);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json({ ok: true });
 }

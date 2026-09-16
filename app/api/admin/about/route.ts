@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readAbout, writeAbout } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 import type { AboutContent } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,10 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as Partial<AboutContent>;
   const current = await readAbout();
   const updated: AboutContent = { ...current, ...body };
-  await writeAbout(updated);
+  try {
+    await writeAbout(updated);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json(updated);
 }

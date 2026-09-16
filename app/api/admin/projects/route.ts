@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readStore, writeStore, generateId } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 import type { Quest } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,10 @@ export async function POST(request: NextRequest) {
     repoUrl: String(body.repoUrl ?? ""),
   };
   quests.push(quest);
-  await writeStore("projects", quests);
+  try {
+    await writeStore("projects", quests);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json(quest, { status: 201 });
 }

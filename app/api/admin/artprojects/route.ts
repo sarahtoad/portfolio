@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readStore, writeStore, generateId } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 import type { ArtProject } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,10 @@ export async function POST(request: NextRequest) {
     focalY: typeof body.focalY === "number" ? body.focalY : 50,
   };
   list.push(project);
-  await writeStore("artprojects", list);
+  try {
+    await writeStore("artprojects", list);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json(project, { status: 201 });
 }

@@ -74,7 +74,11 @@ export async function POST(request: NextRequest) {
   stats.devices[device] = (stats.devices[device] ?? 0) + 1;
 
   stats.days[day] = dayStats;
-  await writeStats(stats);
+  try {
+    await writeStats(stats);
+  } catch {
+    /* never break the visitor experience */
+  }
   return res;
 }
 
@@ -91,6 +95,10 @@ export async function PATCH(request: NextRequest) {
   stats.pageViewsByPath[page] = (stats.pageViewsByPath[page] ?? 0) + 1;
 
   stats.days[day] = dayStats;
-  await writeStats(stats);
+  try {
+    await writeStats(stats);
+  } catch {
+    /* never break the visitor experience */
+  }
   return NextResponse.json({ ok: true });
 }

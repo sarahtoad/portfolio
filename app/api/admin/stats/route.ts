@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readStats, writeStats } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +29,19 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  await writeStats({
-    totalVisits: 0,
-    uniqueVisitors: 0,
-    totalPageViews: 0,
-    days: {},
-    pageViewsByPath: {},
-    referrers: {},
-    browsers: {},
-    devices: {},
-  });
+  try {
+    await writeStats({
+      totalVisits: 0,
+      uniqueVisitors: 0,
+      totalPageViews: 0,
+      days: {},
+      pageViewsByPath: {},
+      referrers: {},
+      browsers: {},
+      devices: {},
+    });
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json({ ok: true });
 }

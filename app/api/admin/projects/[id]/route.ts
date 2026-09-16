@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
 import { readStore, writeStore } from "@/lib/store";
+import { storageError } from "@/lib/routeErr";
 import type { Quest } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof updated.achievements === "string") updated.achievements = updated.achievements.split(",").map((s: string) => s.trim()).filter(Boolean);
   if (typeof updated.lessons === "string") updated.lessons = updated.lessons.split(",").map((s: string) => s.trim()).filter(Boolean);
   quests[idx] = updated;
-  await writeStore("projects", quests);
+  try {
+    await writeStore("projects", quests);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json(quests[idx]);
 }
 
@@ -27,6 +32,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (denied) return denied;
   const { id } = await params;
   const quests = await readStore<Quest>("projects", []);
-  await writeStore("projects", quests.filter((q) => q.id !== id));
+  const filtered = quests.filter((q) => q.id !== id);
+  try {
+    await writeStore("projects", filtered);
+  } catch (e) {
+    return storageError(e);
+  }
   return Response.json({ ok: true });
 }
