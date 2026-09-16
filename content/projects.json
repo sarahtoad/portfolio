@@ -1,0 +1,32 @@
+[
+  {
+    "id": "cinehub-01",
+    "name": "CineHub",
+    "tagline": "A cinematic discovery platform",
+    "status": "COMPLETED",
+    "difficulty": "JOURNEYMAN",
+    "objective": "Build a movie discovery app with rich metadata and streaming info",
+    "description": "CineHub is a full-stack movie discovery platform that aggregates data from TMDB API, providing users with trending movies, detailed information, and streaming availability.",
+    "technologies": ["Next.js", "TypeScript", "TMDB API", "Tailwind CSS", "Framer Motion"],
+    "achievements": ["Real-time search", "Responsive design", "Streaming availability"],
+    "lessons": ["API integration patterns", "Performance optimization", "State management"],
+    "image": "",
+    "demoUrl": "",
+    "repoUrl": ""
+  },
+  {
+    "id": "rasm-01",
+    "name": "RASM",
+    "tagline": "A creative portfolio showcase",
+    "status": "COMPLETED",
+    "difficulty": "MASTER",
+    "objective": "Create an immersive portfolio experience with RPG-inspired design",
+    "description": "RASM is a personal portfolio website designed as an immersive RPG experience. It features a Nordic fantasy theme with animated opening scenes, sound effects, and a unique navigation system.",
+    "technologies": ["Next.js", "React", "TypeScript", "Tailwind CSS", "Framer Motion", "GSAP", "Web Audio API"],
+    "achievements": ["Custom audio engine", "GSAP animations", "RPG-style navigation", "Admin panel"],
+    "lessons": ["Creative coding", "Audio synthesis", "Performance with animations", "File-based CMS"],
+    "image": "",
+    "demoUrl": "",
+    "repoUrl": ""
+  }
+]

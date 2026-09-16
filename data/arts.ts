@@ -1,0 +1,46 @@
+import type { ArtForm } from "@/lib/types";
+
+export const artForms: ArtForm[] = [
+  {
+    id: "photography",
+    name: "Photography",
+    description: "Capturing light and moments — finding the extraordinary in the ordinary through composition and shadow.",
+    icon: "camera",
+    runeWord: "SETH",
+  },
+  {
+    id: "violin",
+    name: "Violin",
+    description: "The voice of strings — translating emotion into melody, bridging the ancient and the modern through music.",
+    icon: "music",
+    runeWord: "ALDUIN",
+  },
+  {
+    id: "blender-3d",
+    name: "Blender / 3D",
+    description: "Sculpting digital worlds — breathing life into wireframes and textures, building realms from imagination.",
+    icon: "box",
+    runeWord: "KAHVIIT",
+  },
+  {
+    id: "graphic-design",
+    name: "Graphic Design",
+    description: "The art of visual communication — where typography, color, and form converge to tell stories.",
+    icon: "pen-tool",
+    runeWord: "DREM",
+  },
+  {
+    id: "cinema",
+    name: "Cinema",
+    description: "Stories within stories — understanding the language of film, frame by frame, scene by scene.",
+    icon: "film",
+    runeWord: "JOOR",
+  },
+  {
+    id: "visual-storytelling",
+    name: "Visual Storytelling",
+    description: "Weaving narratives through images — every pixel carries meaning, every composition tells a tale.",
+    icon: "sparkles",
+    runeWord: "WULD",
+  },
+];

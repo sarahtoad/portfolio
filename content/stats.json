@@ -1,0 +1,29 @@
+{
+  "totalVisits": 0,
+  "uniqueVisitors": 0,
+  "totalPageViews": 128,
+  "days": {
+    "2026-09-10": {
+      "visits": 0,
+      "unique": 0,
+      "pageViews": 12
+    },
+    "2026-09-11": {
+      "visits": 0,
+      "unique": 0,
+      "pageViews": 22
+    },
+    "2026-09-16": {
+      "visits": 0,
+      "unique": 0,
+      "pageViews": 94
+    }
+  },
+  "pageViewsByPath": {
+    "/": 1,
+    "/admin": 1
+  },
+  "referrers": {},
+  "browsers": {},
+  "devices": {}
+}

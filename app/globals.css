@@ -1,0 +1,118 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-nordic-snow: #f0ead6;
+  --color-nordic-silver: #b8b8b8;
+  --color-nordic-gold: #c9a84c;
+  --color-nordic-frost: #7fb3d3;
+  --color-nordic-deep-blue: #141a28;
+  --color-nordic-charcoal: #1a1a2e;
+  --color-nordic-void: #0a0c14;
+
+  --font-cinzel: "Cinzel", serif;
+  --font-inter: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-inter);
+  background: #050505;
+  color: var(--color-nordic-snow);
+}
+
+/* Nordic scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0c14;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-nordic-gold);
+  border-radius: 3px;
+}
+
+/* Float rune animation */
+@keyframes float-rune {
+  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.2; }
+  50% { transform: translateY(-20px) rotate(10deg); opacity: 0.4; }
+}
+.animate-float-rune {
+  animation: float-rune 6s ease-in-out infinite;
+}
+
+/* Fade in up */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+/* Ember particles */
+@keyframes ember-rise {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-100px) scale(0); opacity: 0; }
+}
+.animate-ember {
+  animation: ember-rise 3s ease-out infinite;
+}
+
+/* Typewriter cursor blink */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Gold metallic sheen for the hero name */
+@keyframes gold-sheen {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.text-gold-sheen {
+  background: linear-gradient(
+    110deg,
+    #f0ead6 0%,
+    #8a6a2f 25%,
+    #e7c86f 50%,
+    #f0ead6 75%,
+    #8a6a2f 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gold-sheen 7s linear infinite;
+}
+
+/* Skyrim custom cursor */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 9s linear infinite;
+}
+
+@media (pointer: fine) {
+  body,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  [data-cursor] {
+    cursor: none !important;
+  }
+}
