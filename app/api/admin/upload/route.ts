@@ -1,10 +1,13 @@
 import type { NextRequest } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
+import { put } from "@vercel/blob";
 import { requireAuth } from "@/lib/admin";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_FOLDERS = new Set(["certs", "projects", "art"]);
+
+const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 function sanitizeName(name: string) {
   const safe = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
@@ -35,6 +38,18 @@ export async function POST(request: NextRequest) {
   }
   if (buffer.length === 0 || buffer.length > MAX_BYTES) {
     return Response.json({ error: "File must be under 8 MB" }, { status: 400 });
+  }
+
+  if (useBlob) {
+    try {
+      const blob = await put(`uploads/${folder}/${name}`, new Blob([new Uint8Array(buffer)]), {
+        access: "public",
+        addRandomSuffix: true,
+      });
+      return Response.json({ url: blob.url }, { status: 201 });
+    } catch (e) {
+      return Response.json({ error: e instanceof Error ? e.message : "Upload failed" }, { status: 500 });
+    }
   }
 
   const uploadDir = path.join(process.cwd(), "public", "uploads", folder);

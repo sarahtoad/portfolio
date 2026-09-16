@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Redis } from "@upstash/redis";
 import type {
   Certificate,
   Quest,
@@ -27,6 +28,8 @@ const FILES: Record<Resource, string> = {
 const ABOUT_FILE = path.join(CONTENT_DIR, "about.json");
 const STATS_FILE = path.join(CONTENT_DIR, "stats.json");
 
+const KV_PREFIX = "portfolio:";
+
 const DEFAULT_STATS: Stats = {
   totalVisits: 0,
   uniqueVisitors: 0,
@@ -38,11 +41,55 @@ const DEFAULT_STATS: Stats = {
   devices: {},
 };
 
+function redisFromEnv(): Redis | null {
+  const url =
+    process.env.KV_REST_API_URL ??
+    process.env.UPSTASH_REDIS_REST_URL ??
+    process.env.REDIS_REST_URL;
+  const token =
+    process.env.KV_REST_API_TOKEN ??
+    process.env.UPSTASH_REDIS_REST_TOKEN ??
+    process.env.REDIS_REST_TOKEN;
+  if (url && token) return new Redis({ url, token });
+  return null;
+}
+
+const redis = redisFromEnv();
+const useRedis = redis !== null;
+
+function redisKey(key: string) {
+  return KV_PREFIX + key;
+}
+
+async function readJson<T>(key: string): Promise<T | null> {
+  if (!redis) return null;
+  try {
+    const raw = await redis.get<string>(redisKey(key));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as T;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJson(key: string, value: unknown) {
+  if (!redis) return false;
+  try {
+    await redis.set(redisKey(key), JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function fileFor(resource: Resource) {
   return path.join(CONTENT_DIR, FILES[resource]);
 }
 
 export async function readStore<T>(resource: Resource, seed: T[]): Promise<T[]> {
+  const stored = await readJson<T[]>(FILES[resource]);
+  if (Array.isArray(stored)) return stored;
   try {
     const raw = await fs.promises.readFile(fileFor(resource), "utf8");
     const parsed = JSON.parse(raw);
@@ -53,8 +100,11 @@ export async function readStore<T>(resource: Resource, seed: T[]): Promise<T[]> 
 }
 
 export async function writeStore<T>(resource: Resource, items: T[]) {
-  await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
-  await fs.promises.writeFile(fileFor(resource), JSON.stringify(items, null, 2), "utf8");
+  const written = await writeJson(FILES[resource], items);
+  if (!written) {
+    await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
+    await fs.promises.writeFile(fileFor(resource), JSON.stringify(items, null, 2), "utf8");
+  }
 }
 
 export async function readCertificates(): Promise<Certificate[]> {
@@ -87,6 +137,17 @@ export async function readArtProjects(): Promise<ArtProject[]> {
 
 export async function readAbout(): Promise<AboutContent> {
   const seed = (await import("@/data/about")).aboutContent;
+  const stored = await readJson<Partial<AboutContent>>("about.json");
+  if (stored) {
+    return {
+      heroTagline: stored.heroTagline ?? seed.heroTagline,
+      bio: stored.bio ?? seed.bio,
+      interests: Array.isArray(stored.interests) ? stored.interests : seed.interests,
+      skillBars: Array.isArray(stored.skillBars) ? stored.skillBars : seed.skillBars,
+      skillGroups: Array.isArray(stored.skillGroups) ? stored.skillGroups : seed.skillGroups,
+      education: Array.isArray(stored.education) ? stored.education : seed.education,
+    };
+  }
   try {
     const raw = await fs.promises.readFile(ABOUT_FILE, "utf8");
     const parsed = JSON.parse(raw) as Partial<AboutContent>;
@@ -104,11 +165,27 @@ export async function readAbout(): Promise<AboutContent> {
 }
 
 export async function writeAbout(content: AboutContent) {
-  await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
-  await fs.promises.writeFile(ABOUT_FILE, JSON.stringify(content, null, 2), "utf8");
+  const written = await writeJson("about.json", content);
+  if (!written) {
+    await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
+    await fs.promises.writeFile(ABOUT_FILE, JSON.stringify(content, null, 2), "utf8");
+  }
 }
 
 export async function readStats(): Promise<Stats> {
+  const stored = await readJson<Partial<Stats>>("stats.json");
+  if (stored) {
+    return {
+      totalVisits: stored.totalVisits ?? 0,
+      uniqueVisitors: stored.uniqueVisitors ?? 0,
+      totalPageViews: stored.totalPageViews ?? 0,
+      days: stored.days ?? {},
+      pageViewsByPath: stored.pageViewsByPath ?? {},
+      referrers: stored.referrers ?? {},
+      browsers: stored.browsers ?? {},
+      devices: stored.devices ?? {},
+    };
+  }
   try {
     const raw = await fs.promises.readFile(STATS_FILE, "utf8");
     const parsed = JSON.parse(raw) as Partial<Stats>;
@@ -128,8 +205,11 @@ export async function readStats(): Promise<Stats> {
 }
 
 export async function writeStats(stats: Stats) {
-  await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
-  await fs.promises.writeFile(STATS_FILE, JSON.stringify(stats, null, 2), "utf8");
+  const written = await writeJson("stats.json", stats);
+  if (!written) {
+    await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
+    await fs.promises.writeFile(STATS_FILE, JSON.stringify(stats, null, 2), "utf8");
+  }
 }
 
 export function slugify(input: string) {
