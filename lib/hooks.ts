@@ -8,6 +8,8 @@ export function useRefetchOnVisible(callback: () => void) {
   useEffect(() => {
     const handler = () => stableCallback();
 
+    stableCallback();
+
     window.addEventListener("pageshow", handler);
     window.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") handler();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import type { Certificate } from "@/lib/types";
 import { certificates as seed } from "@/data/certificates";
@@ -118,10 +118,6 @@ export default function CertificatesSection() {
   }, []);
 
   useRefetchOnVisible(load);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   return (
     <section className="px-6 py-20 max-w-4xl mx-auto">
