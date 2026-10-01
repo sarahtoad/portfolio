@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/admin";
-import { readStats, writeStats } from "@/lib/store";
+import { readStats, resetStats } from "@/lib/store";
 import { storageError } from "@/lib/routeErr";
 
 export const dynamic = "force-dynamic";
@@ -30,16 +30,7 @@ export async function DELETE(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
   try {
-    await writeStats({
-      totalVisits: 0,
-      uniqueVisitors: 0,
-      totalPageViews: 0,
-      days: {},
-      pageViewsByPath: {},
-      referrers: {},
-      browsers: {},
-      devices: {},
-    });
+    await resetStats();
   } catch (e) {
     return storageError(e);
   }

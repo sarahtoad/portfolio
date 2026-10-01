@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  return Response.json(await readStore<ArtProject>("artprojects", []));
+  return Response.json(await readStore<ArtProject>("artprojects"));
 }
 
 export async function POST(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
   const body = await request.json();
-  const list = await readStore<ArtProject>("artprojects", []);
+  const list = await readStore<ArtProject>("artprojects");
   const project: ArtProject = {
     id: generateId(String(body.title ?? "work")),
     artId: String(body.artId ?? ""),

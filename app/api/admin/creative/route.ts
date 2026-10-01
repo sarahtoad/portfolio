@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  return Response.json(await readStore<ArtForm>("creative", []));
+  return Response.json(await readStore<ArtForm>("creative"));
 }
 
 export async function POST(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
   const body = await request.json();
-  const list = await readStore<ArtForm>("creative", []);
+  const list = await readStore<ArtForm>("creative");
   const art: ArtForm = {
     id: generateId(String(body.name ?? "art")),
     name: String(body.name ?? ""),

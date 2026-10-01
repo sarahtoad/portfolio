@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  return Response.json(await readStore<Message>("messages", []));
+  return Response.json(await readStore<Message>("messages"));
 }

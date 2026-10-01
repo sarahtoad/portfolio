@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (denied) return denied;
   const { id } = await params;
   const body = await request.json();
-  const certs = await readStore<Certificate>("certificates", []);
+  const certs = await readStore<Certificate>("certificates");
   const idx = certs.findIndex((c) => c.id === id);
   if (idx === -1) return Response.json({ error: "Not found" }, { status: 404 });
   certs[idx] = { ...certs[idx], ...body, id, image: "image" in body ? String(body.image ?? "") : certs[idx].image };
@@ -27,7 +27,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const denied = requireAuth(request);
   if (denied) return denied;
   const { id } = await params;
-  const certs = await readStore<Certificate>("certificates", []);
+  const certs = await readStore<Certificate>("certificates");
   const filtered = certs.filter((c) => c.id !== id);
   try {
     await writeStore("certificates", filtered);

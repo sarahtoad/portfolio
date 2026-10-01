@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (denied) return denied;
   const { id } = await params;
   const body = await request.json();
-  const quests = await readStore<Quest>("projects", []);
+  const quests = await readStore<Quest>("projects");
   const idx = quests.findIndex((q) => q.id === id);
   if (idx === -1) return Response.json({ error: "Not found" }, { status: 404 });
   const updated = { ...quests[idx], ...body, id };
@@ -31,7 +31,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const denied = requireAuth(request);
   if (denied) return denied;
   const { id } = await params;
-  const quests = await readStore<Quest>("projects", []);
+  const quests = await readStore<Quest>("projects");
   const filtered = quests.filter((q) => q.id !== id);
   try {
     await writeStore("projects", filtered);

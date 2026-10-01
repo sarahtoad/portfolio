@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "All fields are required" }, { status: 400 });
   }
 
-  const messages = await readStore<Message>("messages", []);
+  const messages = await readStore<Message>("messages");
   const newMsg: Message = {
     id: generateId("raven"),
     name,

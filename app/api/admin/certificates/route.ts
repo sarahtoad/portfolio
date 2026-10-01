@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  const certs = await readStore<Certificate>("certificates", []);
+  const certs = await readStore<Certificate>("certificates");
   return Response.json(certs);
 }
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
   const body = await request.json();
-  const certs = await readStore<Certificate>("certificates", []);
+  const certs = await readStore<Certificate>("certificates");
   const cert: Certificate = {
     id: generateId(String(body.title ?? "cert")),
     title: String(body.title ?? ""),

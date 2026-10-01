@@ -1,29 +1,36 @@
 {
-  "totalVisits": 0,
-  "uniqueVisitors": 0,
-  "totalPageViews": 128,
+  "totalVisits": 2,
+  "uniqueVisitors": 1,
+  "totalPageViews": 8,
   "days": {
-    "2026-09-10": {
-      "visits": 0,
+    "2026-09-17": {
+      "visits": 1,
       "unique": 0,
-      "pageViews": 12
+      "pageViews": 7
     },
-    "2026-09-11": {
-      "visits": 0,
-      "unique": 0,
-      "pageViews": 22
-    },
-    "2026-09-16": {
-      "visits": 0,
-      "unique": 0,
-      "pageViews": 94
+    "2026-10-01": {
+      "visits": 1,
+      "unique": 1,
+      "pageViews": 1
     }
   },
   "pageViewsByPath": {
-    "/": 1,
+    "/": 2,
+    "/about": 1,
+    "/experience": 1,
+    "/projects": 1,
+    "/creative": 1,
+    "/contact": 1,
     "/admin": 1
   },
-  "referrers": {},
-  "browsers": {},
-  "devices": {}
+  "referrers": {
+    "direct": 2
+  },
+  "browsers": {
+    "Firefox": 1,
+    "Chrome": 1
+  },
+  "devices": {
+    "Desktop": 2
+  }
 }

@@ -1,16 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Redis } from "@upstash/redis";
 import type {
   Certificate,
   Quest,
   JourneyChapter,
   Message,
   Stats,
+  DayStat,
   AboutContent,
   ArtForm,
   ArtProject,
 } from "./types";
+import { getRedis, withLock } from "./redis";
+import { isServerless, storeConfigError } from "./env";
 
 export type Resource = "certificates" | "projects" | "experience" | "messages" | "creative" | "artprojects";
 
@@ -29,8 +31,21 @@ const ABOUT_FILE = path.join(CONTENT_DIR, "about.json");
 const STATS_FILE = path.join(CONTENT_DIR, "stats.json");
 
 const KV_PREFIX = "portfolio:";
+const STATS_PREFIX = `${KV_PREFIX}stats:`;
 
-const DEFAULT_STATS: Stats = {
+const STATS_KEYS = {
+  counters: `${STATS_PREFIX}counters`,
+  days: `${STATS_PREFIX}days`,
+  paths: `${STATS_PREFIX}paths`,
+  referrers: `${STATS_PREFIX}referrers`,
+  browsers: `${STATS_PREFIX}browsers`,
+  devices: `${STATS_PREFIX}devices`,
+} as const;
+
+/** Caps on the client-influenced counters, so a bot cannot grow Redis forever. */
+const CARDINALITY_LIMITS = { paths: 200, referrers: 150, browsers: 24, devices: 12 } as const;
+
+const EMPTY_STATS: Stats = {
   totalVisits: 0,
   uniqueVisitors: 0,
   totalPageViews: 0,
@@ -41,178 +56,339 @@ const DEFAULT_STATS: Stats = {
   devices: {},
 };
 
-function redisFromEnv(): Redis | null {
-  const url =
-    process.env.KV_REST_API_URL ??
-    process.env.UPSTASH_REDIS_REST_URL ??
-    process.env.REDIS_REST_URL;
-  const token =
-    process.env.KV_REST_API_TOKEN ??
-    process.env.UPSTASH_REDIS_REST_TOKEN ??
-    process.env.REDIS_REST_TOKEN;
-  if (url && token) return new Redis({ url, token });
-  return null;
+export class StoreUnavailableError extends Error {}
+
+function unavailable(): never {
+  throw new StoreUnavailableError(storeConfigError() ?? "Storage is not available.");
 }
 
-const redis = redisFromEnv();
-const onVercel = process.env.VERCEL === "1";
-
-const REDIS_MISSING_ERROR =
-  "Persistence is not configured. On Vercel you must add the Upstash Redis integration (env UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN, or KV_REST_API_URL + KV_REST_API_TOKEN).";
-
-function redisKey(key: string) {
-  return KV_PREFIX + key;
-}
-
-async function readJson<T>(key: string): Promise<T | null> {
-  if (!redis) return null;
-  try {
-    const raw = await redis.get<string>(redisKey(key));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as T;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-async function writeJson(key: string, value: unknown) {
-  if (redis) {
-    try {
-      await redis.set(redisKey(key), JSON.stringify(value));
-      return "redis";
-    } catch (e) {
-      throw new Error(`Redis write failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-  if (onVercel) throw new Error(REDIS_MISSING_ERROR);
-  return "fs";
+function key(name: string) {
+  return KV_PREFIX + name;
 }
 
 function fileFor(resource: Resource) {
   return path.join(CONTENT_DIR, FILES[resource]);
 }
 
-export async function readStore<T>(resource: Resource, seed: T[]): Promise<T[]> {
+async function readJson<T>(name: string): Promise<T | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+  try {
+    const raw = await redis.get<string>(key(name));
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJson(name: string, value: unknown) {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.set(key(name), JSON.stringify(value));
+    } catch (e) {
+      throw new Error(`Redis write failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return "redis";
+  }
+  if (isServerless) unavailable();
+  return "fs";
+}
+
+async function writeFile(file: string, value: unknown) {
+  await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
+  await fs.promises.writeFile(file, JSON.stringify(value, null, 2), "utf8");
+}
+
+/**
+ * Fallback content used until something is stored in Redis. Resolved centrally
+ * so the public site and the admin panel always agree on the starting data —
+ * they previously diverged, which made the first admin save on a fresh Vercel
+ * deployment wipe the seeded entries.
+ */
+async function seedFor<T>(resource: Resource): Promise<T[]> {
+  switch (resource) {
+    case "certificates":
+      return (await import("@/data/certificates")).certificates as T[];
+    case "projects":
+      return (await import("@/data/projects")).quests as T[];
+    case "experience":
+      return (await import("@/data/journey")).journeyChapters as T[];
+    case "creative":
+      return (await import("@/data/arts")).artForms as T[];
+    default:
+      return [];
+  }
+}
+
+export async function readStore<T>(resource: Resource): Promise<T[]> {
   const stored = await readJson<T[]>(FILES[resource]);
   if (Array.isArray(stored)) return stored;
+
   try {
     const raw = await fs.promises.readFile(fileFor(resource), "utf8");
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as T[]) : seed;
+    if (Array.isArray(parsed)) return parsed as T[];
   } catch {
-    return seed;
+    /* not bundled or not readable — fall through to the compiled seed */
   }
+  return seedFor<T>(resource);
 }
 
 export async function writeStore<T>(resource: Resource, items: T[]) {
   if ((await writeJson(FILES[resource], items)) === "fs") {
-    await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
-    await fs.promises.writeFile(fileFor(resource), JSON.stringify(items, null, 2), "utf8");
+    await writeFile(fileFor(resource), items);
   }
 }
 
+/**
+ * Read-modify-write under a lock. Every admin mutation and every contact
+ * message goes through here: two parallel serverless invocations would
+ * otherwise overwrite each other's changes.
+ */
+export async function mutateStore<T, R>(resource: Resource, mutate: (items: T[]) => R | Promise<R>): Promise<R> {
+  if (!getRedis() && isServerless) unavailable();
+  return withLock(`store:${resource}`, async () => {
+    const items = await readStore<T>(resource);
+    const result = await mutate(items);
+    await writeStore(resource, items);
+    return result;
+  });
+}
+
 export async function readCertificates(): Promise<Certificate[]> {
-  const { certificates: seed } = await import("@/data/certificates");
-  return readStore<Certificate>("certificates", seed);
+  return readStore<Certificate>("certificates");
 }
 
 export async function readQuests(): Promise<Quest[]> {
-  const { quests: seed } = await import("@/data/projects");
-  return readStore<Quest>("projects", seed);
+  return readStore<Quest>("projects");
 }
 
 export async function readJourney(): Promise<JourneyChapter[]> {
-  const { journeyChapters: seed } = await import("@/data/journey");
-  return readStore<JourneyChapter>("experience", seed);
+  return readStore<JourneyChapter>("experience");
 }
 
 export async function readMessages(): Promise<Message[]> {
-  return readStore<Message>("messages", []);
+  return readStore<Message>("messages");
 }
 
 export async function readArtForms(): Promise<ArtForm[]> {
-  const { artForms: seed } = await import("@/data/arts");
-  return readStore<ArtForm>("creative", seed);
+  return readStore<ArtForm>("creative");
 }
 
 export async function readArtProjects(): Promise<ArtProject[]> {
-  return readStore<ArtProject>("artprojects", []);
+  return readStore<ArtProject>("artprojects");
+}
+
+function mergeAbout(base: AboutContent, patch: Partial<AboutContent> | null): AboutContent {
+  if (!patch) return base;
+  return {
+    heroTagline: patch.heroTagline ?? base.heroTagline,
+    bio: patch.bio ?? base.bio,
+    interests: Array.isArray(patch.interests) ? patch.interests : base.interests,
+    skillBars: Array.isArray(patch.skillBars) ? patch.skillBars : base.skillBars,
+    skillGroups: Array.isArray(patch.skillGroups) ? patch.skillGroups : base.skillGroups,
+    education: Array.isArray(patch.education) ? patch.education : base.education,
+  };
 }
 
 export async function readAbout(): Promise<AboutContent> {
   const seed = (await import("@/data/about")).aboutContent;
   const stored = await readJson<Partial<AboutContent>>("about.json");
-  if (stored) {
-    return {
-      heroTagline: stored.heroTagline ?? seed.heroTagline,
-      bio: stored.bio ?? seed.bio,
-      interests: Array.isArray(stored.interests) ? stored.interests : seed.interests,
-      skillBars: Array.isArray(stored.skillBars) ? stored.skillBars : seed.skillBars,
-      skillGroups: Array.isArray(stored.skillGroups) ? stored.skillGroups : seed.skillGroups,
-      education: Array.isArray(stored.education) ? stored.education : seed.education,
-    };
-  }
+  if (stored) return mergeAbout(seed, stored);
   try {
     const raw = await fs.promises.readFile(ABOUT_FILE, "utf8");
-    const parsed = JSON.parse(raw) as Partial<AboutContent>;
-    return {
-      heroTagline: parsed.heroTagline ?? seed.heroTagline,
-      bio: parsed.bio ?? seed.bio,
-      interests: Array.isArray(parsed.interests) ? parsed.interests : seed.interests,
-      skillBars: Array.isArray(parsed.skillBars) ? parsed.skillBars : seed.skillBars,
-      skillGroups: Array.isArray(parsed.skillGroups) ? parsed.skillGroups : seed.skillGroups,
-      education: Array.isArray(parsed.education) ? parsed.education : seed.education,
-    };
+    return mergeAbout(seed, JSON.parse(raw) as Partial<AboutContent>);
   } catch {
     return seed;
   }
 }
 
 export async function writeAbout(content: AboutContent) {
-  if ((await writeJson("about.json", content)) === "fs") {
-    await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
-    await fs.promises.writeFile(ABOUT_FILE, JSON.stringify(content, null, 2), "utf8");
+  if (!getRedis() && isServerless) unavailable();
+  await withLock("store:about", async () => {
+    if ((await writeJson("about.json", content)) === "fs") {
+      await writeFile(ABOUT_FILE, content);
+    }
+  });
+}
+
+export async function updateAbout(patch: Partial<AboutContent>): Promise<AboutContent> {
+  if (!getRedis() && isServerless) unavailable();
+  return withLock("store:about", async () => {
+    const updated = mergeAbout(await readAbout(), patch);
+    if ((await writeJson("about.json", updated)) === "fs") {
+      await writeFile(ABOUT_FILE, updated);
+    }
+    return updated;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Analytics — atomic counters so parallel visitors cannot clobber data */
+/* ------------------------------------------------------------------ */
+
+function toCounter(hash: Record<string, unknown> | null | undefined) {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(hash ?? {})) {
+    const n = Number(v);
+    if (Number.isFinite(n)) out[k] = n;
+  }
+  return out;
+}
+
+function readStatsFromFile(): Stats {
+  try {
+    const raw = require("node:fs").promises;
+    void raw;
+  } catch {
+    /* noop */
+  }
+  return EMPTY_STATS;
+}
+
+async function readStatsFromDisk(): Promise<Stats> {
+  try {
+    const raw = await fs.promises.readFile(STATS_FILE, "utf8");
+    return { ...EMPTY_STATS, ...(JSON.parse(raw) as Partial<Stats>) };
+  } catch {
+    return EMPTY_STATS;
+  }
+}
+
+export type VisitInput = {
+  day: string;
+  referrer: string;
+  browser: string;
+  device: string;
+  unique: boolean;
+};
+
+export async function recordVisit(input: VisitInput) {
+  const redis = getRedis();
+  if (!redis) {
+    await withLock("stats", async () => {
+      const stats = await readStatsFromDisk();
+      stats.totalVisits += 1;
+      const day = (stats.days[input.day] ??= { visits: 0, unique: 0, pageViews: 0 });
+      day.visits += 1;
+      if (input.unique) {
+        stats.uniqueVisitors += 1;
+        day.unique += 1;
+      }
+      stats.referrers[input.referrer] = (stats.referrers[input.referrer] ?? 0) + 1;
+      stats.browsers[input.browser] = (stats.browsers[input.browser] ?? 0) + 1;
+      stats.devices[input.device] = (stats.devices[input.device] ?? 0) + 1;
+      await writeFile(STATS_FILE, stats);
+    });
+    return;
+  }
+
+  const pipe = redis.pipeline();
+  pipe.hincrby(STATS_KEYS.counters, "totalVisits", 1);
+  pipe.hincrby(STATS_KEYS.days, `${input.day}:visits`, 1);
+  if (input.unique) {
+    pipe.hincrby(STATS_KEYS.counters, "uniqueVisitors", 1);
+    pipe.hincrby(STATS_KEYS.days, `${input.day}:unique`, 1);
+  }
+  pipe.hincrby(STATS_KEYS.referrers, input.referrer, 1);
+  pipe.hincrby(STATS_KEYS.browsers, input.browser, 1);
+  pipe.hincrby(STATS_KEYS.devices, input.device, 1);
+  pipe.hlen(STATS_KEYS.referrers);
+  pipe.hlen(STATS_KEYS.browsers);
+  pipe.hlen(STATS_KEYS.devices);
+
+  const results = await pipe.exec<any>();
+  const referrerLen = results[5] as number | undefined;
+  const browserLen = results[6] as number | undefined;
+  const deviceLen = results[7] as number | undefined;
+
+  if ((referrerLen ?? 0) > CARDINALITY_LIMITS.referrers) {
+    await redis.hdel(STATS_KEYS.referrers, input.referrer).catch(() => undefined);
+  }
+  if ((browserLen ?? 0) > CARDINALITY_LIMITS.browsers) {
+    await redis.hdel(STATS_KEYS.browsers, input.browser).catch(() => undefined);
+  }
+  if ((deviceLen ?? 0) > CARDINALITY_LIMITS.devices) {
+    await redis.hdel(STATS_KEYS.devices, input.device).catch(() => undefined);
+  }
+}
+
+export async function recordPageView(day: string, pathname: string) {
+  const redis = getRedis();
+  if (!redis) {
+    await withLock("stats", async () => {
+      const stats = await readStatsFromDisk();
+      stats.totalPageViews += 1;
+      const bucket = (stats.days[day] ??= { visits: 0, unique: 0, pageViews: 0 });
+      bucket.pageViews += 1;
+      stats.pageViewsByPath[pathname] = (stats.pageViewsByPath[pathname] ?? 0) + 1;
+      await writeFile(STATS_FILE, stats);
+    });
+    return;
+  }
+
+  const pipe = redis.pipeline();
+  pipe.hincrby(STATS_KEYS.counters, "totalPageViews", 1);
+  pipe.hincrby(STATS_KEYS.days, `${day}:pageViews`, 1);
+  pipe.hincrby(STATS_KEYS.paths, pathname, 1);
+  pipe.hlen(STATS_KEYS.paths);
+
+  const results = await pipe.exec<[number, number, number, number]>();
+  const pathsLen = results[3] as number | undefined;
+
+  if ((pathsLen ?? 0) > CARDINALITY_LIMITS.paths) {
+    await redis.hdel(STATS_KEYS.paths, pathname).catch(() => undefined);
   }
 }
 
 export async function readStats(): Promise<Stats> {
-  const stored = await readJson<Partial<Stats>>("stats.json");
-  if (stored) {
-    return {
-      totalVisits: stored.totalVisits ?? 0,
-      uniqueVisitors: stored.uniqueVisitors ?? 0,
-      totalPageViews: stored.totalPageViews ?? 0,
-      days: stored.days ?? {},
-      pageViewsByPath: stored.pageViewsByPath ?? {},
-      referrers: stored.referrers ?? {},
-      browsers: stored.browsers ?? {},
-      devices: stored.devices ?? {},
-    };
+  const redis = getRedis();
+  if (!redis) return readStatsFromDisk();
+
+  const pipe = redis.pipeline();
+  pipe.hgetall<Record<string, number>>(STATS_KEYS.counters);
+  pipe.hgetall<Record<string, number>>(STATS_KEYS.days);
+  pipe.hgetall<Record<string, number>>(STATS_KEYS.paths);
+  pipe.hgetall<Record<string, number>>(STATS_KEYS.referrers);
+  pipe.hgetall<Record<string, number>>(STATS_KEYS.browsers);
+  pipe.hgetall<Record<string, number>>(STATS_KEYS.devices);
+
+  const [counters, days, paths, referrers, browsers, devices] = await pipe.exec<
+    [Record<string, number>, Record<string, number>, Record<string, number>, Record<string, number>, Record<string, number>, Record<string, number>]
+  >();
+
+  const bucket: Record<string, DayStat> = {};
+  for (const [field, value] of Object.entries(toCounter(days))) {
+    const [day, metric] = field.split(":");
+    if (!day || !metric) continue;
+    const entry = (bucket[day] ??= { visits: 0, unique: 0, pageViews: 0 });
+    if (metric === "visits") entry.visits = value;
+    else if (metric === "unique") entry.unique = value;
+    else if (metric === "pageViews") entry.pageViews = value;
   }
-  try {
-    const raw = await fs.promises.readFile(STATS_FILE, "utf8");
-    const parsed = JSON.parse(raw) as Partial<Stats>;
-    return {
-      totalVisits: parsed.totalVisits ?? 0,
-      uniqueVisitors: parsed.uniqueVisitors ?? 0,
-      totalPageViews: parsed.totalPageViews ?? 0,
-      days: parsed.days ?? {},
-      pageViewsByPath: parsed.pageViewsByPath ?? {},
-      referrers: parsed.referrers ?? {},
-      browsers: parsed.browsers ?? {},
-      devices: parsed.devices ?? {},
-    };
-  } catch {
-    return DEFAULT_STATS;
-  }
+
+  return {
+    totalVisits: counters?.totalVisits ?? 0,
+    uniqueVisitors: counters?.uniqueVisitors ?? 0,
+    totalPageViews: counters?.totalPageViews ?? 0,
+    days: bucket,
+    pageViewsByPath: toCounter(paths),
+    referrers: toCounter(referrers),
+    browsers: toCounter(browsers),
+    devices: toCounter(devices),
+  };
 }
 
-export async function writeStats(stats: Stats) {
-  if ((await writeJson("stats.json", stats)) === "fs") {
-    await fs.promises.mkdir(CONTENT_DIR, { recursive: true });
-    await fs.promises.writeFile(STATS_FILE, JSON.stringify(stats, null, 2), "utf8");
+export async function resetStats() {
+  const redis = getRedis();
+  if (redis) {
+    await redis.del(...Object.values(STATS_KEYS));
+    return;
   }
+  if (isServerless) unavailable();
+  await withLock("stats", () => writeFile(STATS_FILE, EMPTY_STATS));
 }
 
 export function slugify(input: string) {
@@ -226,7 +402,7 @@ export function slugify(input: string) {
 
 export function generateId(seed: string) {
   const base = slugify(seed) || "item";
-  const suffix = Math.random().toString(36).slice(2, 6);
+  const suffix = crypto.randomUUID().slice(0, 6);
   return `${base}-${suffix}`;
 }
 

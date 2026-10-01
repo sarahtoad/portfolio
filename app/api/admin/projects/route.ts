@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  const quests = await readStore<Quest>("projects", []);
+  const quests = await readStore<Quest>("projects");
   return Response.json(quests);
 }
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const denied = requireAuth(request);
   if (denied) return denied;
   const body = await request.json();
-  const quests = await readStore<Quest>("projects", []);
+  const quests = await readStore<Quest>("projects");
   const quest: Quest = {
     id: generateId(String(body.name ?? "quest")),
     name: String(body.name ?? ""),
