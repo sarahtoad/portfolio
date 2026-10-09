@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { apiFetch } from "@/lib/api";
 
 const inputCls = "w-full bg-[#0a0c10] border border-nordic-silver/20 text-nordic-snow px-3 py-2 text-sm focus:outline-none focus:border-nordic-gold/60 transition-colors";
 
@@ -14,7 +15,7 @@ export default function ContactForm() {
     e.preventDefault();
     setBusy(true);
     try {
-      await fetch("/api/messages", {
+      await apiFetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

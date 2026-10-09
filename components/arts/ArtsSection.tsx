@@ -6,6 +6,7 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import type { ArtForm, ArtProject } from "@/lib/types";
 import { artForms as seed } from "@/data/arts";
 import { useRefetchOnVisible } from "@/lib/hooks";
+import { apiFetch } from "@/lib/api";
 
 const icons: Record<string, string> = {
   camera: "◉",
@@ -22,11 +23,11 @@ export default function ArtsSection() {
   const [active, setActive] = useState<ArtForm | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/content/creative", { cache: "no-store" })
+    apiFetch("/api/content/creative", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (Array.isArray(data) && data.length) setArts(data); })
       .catch(() => {});
-    fetch("/api/content/artprojects", { cache: "no-store" })
+    apiFetch("/api/content/artprojects", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => { if (Array.isArray(data)) setAllProjects(data); })
       .catch(() => {});

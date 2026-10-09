@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Certificate, Quest, JourneyChapter, Message, Stats, AboutContent, ArtForm, ArtProject } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 
 type Tab = "projects" | "experience" | "about" | "creative" | "artprojects" | "messages" | "stats";
 
@@ -23,7 +24,7 @@ const btnGhost =
   "font-mono text-[11px] tracking-[0.2em] uppercase text-nordic-gold border border-nordic-gold/40 px-4 py-2 hover:bg-nordic-gold/10 transition-colors";
 
 async function jsonFetch(url: string, options?: RequestInit) {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
   });
@@ -39,7 +40,7 @@ function uploadFile(file: File, folder: UploadFolder) {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const res = await fetch("/api/admin/upload", {
+        const res = await apiFetch("/api/admin/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: file.name, data: String(reader.result), folder }),
@@ -102,7 +103,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/admin/logout", { method: "POST" })
+    apiFetch("/api/admin/logout", { method: "POST" })
       .catch(() => {})
       .finally(() => setAuthed(false));
   }, []);
@@ -144,7 +145,7 @@ export default function AdminDashboard() {
             <div className="font-mono text-[10px] tracking-[0.4em] uppercase text-nordic-gold/70">◆ The Keeper&rsquo;s Sanctum ◆</div>
             <h1 className="mt-1 font-cinzel text-2xl md:text-3xl tracking-[0.15em]">THE VAULT</h1>
           </div>
-          <button onClick={async () => { await fetch("/api/admin/logout", { method: "POST" }); setAuthed(false); }} className={btnGhost}>Logout</button>
+          <button onClick={async () => { await apiFetch("/api/admin/logout", { method: "POST" }); setAuthed(false); }} className={btnGhost}>Logout</button>
         </header>
 
         {flash && <div className="mt-4 border border-nordic-gold/30 bg-nordic-gold/10 px-4 py-2 font-mono text-xs text-nordic-gold">{flash}</div>}

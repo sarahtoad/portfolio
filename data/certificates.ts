@@ -9,7 +9,7 @@ export const certificates: Certificate[] = [
     description: "Bachelor's degree in Computer Science with focus on software development and algorithms.",
     seal: "ᚨ",
     verifyUrl: "",
-    image: "/uploads/certs/1789565649167-gj9x-IMG_7698.JPG",
+    image: "",
   },
   {
     id: "master-cert",

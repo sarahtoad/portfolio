@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import type { Certificate } from "@/lib/types";
 import { certificates as seed } from "@/data/certificates";
 import { useRefetchOnVisible } from "@/lib/hooks";
+import { apiFetch } from "@/lib/api";
 import SectionHeader from "@/components/ui/SectionHeader";
 
 function CertificateCard({ cert, index }: { cert: Certificate; index: number }) {
@@ -93,7 +94,7 @@ export default function CertificatesSection() {
   const [certs, setCerts] = useState<Certificate[]>(seed);
 
   const load = useCallback(() => {
-    fetch("/api/content/certificates", { cache: "no-store" })
+    apiFetch("/api/content/certificates", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!Array.isArray(data) || !data.length) return;
@@ -107,7 +108,7 @@ export default function CertificatesSection() {
               merged[idx] = {
                 ...merged[idx],
                 ...fetched,
-                image: fetched.image || merged[idx].image,
+                image: fetched.image !== undefined ? fetched.image : merged[idx].image,
               };
             }
           }

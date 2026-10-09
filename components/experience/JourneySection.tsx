@@ -5,13 +5,14 @@ import { motion } from "framer-motion";
 import type { JourneyChapter } from "@/lib/types";
 import { journeyChapters as seed } from "@/data/journey";
 import { useRefetchOnVisible } from "@/lib/hooks";
+import { apiFetch } from "@/lib/api";
 import SectionHeader from "@/components/ui/SectionHeader";
 
 export default function JourneySection() {
   const [chapters, setChapters] = useState<JourneyChapter[]>(seed);
 
   const load = useCallback(() => {
-    fetch("/api/content/experience", { cache: "no-store" })
+    apiFetch("/api/content/experience", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (Array.isArray(data) && data.length) setChapters(data); })
       .catch(() => {});

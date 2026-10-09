@@ -1,7 +1,7 @@
 {
-  "totalVisits": 2,
-  "uniqueVisitors": 1,
-  "totalPageViews": 8,
+  "totalVisits": 11,
+  "uniqueVisitors": 2,
+  "totalPageViews": 40,
   "days": {
     "2026-09-17": {
       "visits": 1,
@@ -9,28 +9,43 @@
       "pageViews": 7
     },
     "2026-10-01": {
-      "visits": 1,
+      "visits": 4,
       "unique": 1,
-      "pageViews": 1
+      "pageViews": 10
+    },
+    "2026-10-02": {
+      "visits": 0,
+      "unique": 0,
+      "pageViews": 10
+    },
+    "2026-10-03": {
+      "visits": 5,
+      "unique": 1,
+      "pageViews": 11
+    },
+    "2026-10-09": {
+      "visits": 1,
+      "unique": 0,
+      "pageViews": 2
     }
   },
   "pageViewsByPath": {
-    "/": 2,
-    "/about": 1,
-    "/experience": 1,
-    "/projects": 1,
+    "/": 10,
+    "/about": 5,
+    "/experience": 12,
+    "/projects": 3,
     "/creative": 1,
     "/contact": 1,
-    "/admin": 1
+    "/admin": 8
   },
   "referrers": {
-    "direct": 2
+    "direct": 11
   },
   "browsers": {
-    "Firefox": 1,
-    "Chrome": 1
+    "Firefox": 3,
+    "Chrome": 8
   },
   "devices": {
-    "Desktop": 2
+    "Desktop": 11
   }
 }

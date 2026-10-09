@@ -4,12 +4,13 @@ import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import type { Message } from "@/lib/types";
 import { useRefetchOnVisible } from "@/lib/hooks";
+import { apiFetch } from "@/lib/api";
 
 export default function Voices() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   const load = useCallback(() => {
-    fetch("/api/content/messages", { cache: "no-store" })
+    apiFetch("/api/content/messages", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => { if (Array.isArray(data)) setMessages(data); })
       .catch(() => {});

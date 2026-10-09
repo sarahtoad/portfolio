@@ -5,13 +5,14 @@ import { motion } from "framer-motion";
 import type { Quest } from "@/lib/types";
 import { quests as seed } from "@/data/projects";
 import { useRefetchOnVisible } from "@/lib/hooks";
+import { apiFetch } from "@/lib/api";
 import SectionHeader from "@/components/ui/SectionHeader";
 
 export default function QuestsSection() {
   const [quests, setQuests] = useState<Quest[]>(seed);
 
   const load = useCallback(() => {
-    fetch("/api/content/projects", { cache: "no-store" })
+    apiFetch("/api/content/projects", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (Array.isArray(data) && data.length) setQuests(data); })
       .catch(() => {});
